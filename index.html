@@ -131,65 +131,33 @@
     </div>
 
     <script>
-        // Replace with your actual Blynk Auth Token
-        const BLYNK_TOKEN = "tbuphSh7p368_bBxAljJxRi9S2MaLv4n";
-        const BLYNK_SERVER = "blynk.cloud";
-        
-        // Virtual pins for GPS data
-        const LAT_PIN = "V19";
-        const LON_PIN = "V20";
-
         async function fetchGPSAndRedirect() {
             try {
-                // Fetch latitude and longitude in parallel
-                const [latResponse, lonResponse] = await Promise.all([
-                    fetch(`https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&${LAT_PIN}`),
-                    fetch(`https://${BLYNK_SERVER}/external/api/get?token=${BLYNK_TOKEN}&${LON_PIN}`)
-                ]);
-
-                // Check if responses are OK
-                if (!latResponse.ok || !lonResponse.ok) {
-                    throw new Error('Failed to fetch GPS data from Blynk');
-                }
-
-                // Parse the responses
-                const lat = await latResponse.text();
-                const lon = await lonResponse.text();
-
-                // Validate coordinates
-                const latitude = parseFloat(lat.trim());
-                const longitude = parseFloat(lon.trim());
-
+                const response = await fetch("http://192.168.1.15:5000/gps");
+                const data = await response.json();
+        
+                if (data.error) throw new Error(data.error);
+        
+                const latitude = parseFloat(data.lat);
+                const longitude = parseFloat(data.lon);
+        
                 if (isNaN(latitude) || isNaN(longitude)) {
-                    throw new Error('Invalid GPS coordinates received');
+                    throw new Error("Invalid coordinates");
                 }
-
-                if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-                    throw new Error('GPS coordinates out of valid range');
-                }
-
-                // Show coordinates briefly before redirect
+        
                 document.getElementById('coords').style.display = 'block';
                 document.getElementById('coordsText').textContent = `${latitude}, ${longitude}`;
-
-                // Wait a moment then redirect to Google Maps
+        
                 setTimeout(() => {
                     window.location.href = `https://www.google.com/maps?q=${latitude},${longitude}`;
                 }, 1000);
-
+        
             } catch (error) {
-                console.error('Error:', error);
-                
-                // Hide spinner
                 document.querySelector('.spinner').style.display = 'none';
-                
-                // Show error message
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('errorMessage').textContent = error.message || 'An unknown error occurred';
+                document.getElementById('errorMessage').textContent = error.message;
             }
         }
-
-        // Start fetching GPS data when page loads
         fetchGPSAndRedirect();
     </script>
 </body>
