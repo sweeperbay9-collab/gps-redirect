@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loading Location...</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            color: white;
+        }
+        
+        .container {
+            text-align: center;
+            padding: 40px;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 90%;
+        }
+        
+        .icon {
+            font-size: 60px;
+            margin-bottom: 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        
+        h1 {
+            font-size: 24px;
+            margin-bottom: 15px;
+            font-weight: 600;
+        }
+        
+        p {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 25px;
+        }
+        
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .coordinates {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            display: none;
+        }
+        
+        .error {
+            background: rgba(255, 59, 48, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .error h2 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .retry-btn {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 15px;
+            transition: transform 0.2s;
+        }
+        
+        .retry-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .debug-info {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-size: 12px;
+            text-align: left;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📍</div>
+        <h1>Loading Location...</h1>
+        <p>Fetching GPS coordinates from device</p>
+        <div class="spinner"></div>
+        
+        <div class="coordinates" id="coords">
+            <strong>Coordinates:</strong><br>
+            <span id="coordsText"></span>
+        </div>
+        
+        <div class="error" id="error">
+            <h2>⚠️ Could Not Load Location</h2>
+            <p id="errorMessage">Unable to fetch GPS data from device.</p>
+            <button class="retry-btn" onclick="location.reload()">Retry</button>
+        </div>
+
+        <div class="debug-info" id="debug">
+            <strong>Debug Info:</strong><br>
+            <span id="debugText"></span>
+        </div>
+    </div>
+
+    <script>
+        const SERVER_IP = "192.168.1.15";
+        const SERVER_PORT = "5000";
+        const API_URL = `http://${SERVER_IP}:${SERVER_PORT}/gps`;
+
+        let retryCount = 0;
+        const MAX_RETRIES = 3;
+
+        async function fetchGPSAndRedirect() {
+            try {
+                // Show debug info
+                const debugDiv = document.getElementById('debug');
+                const debugText = document.getElementById('debugText');
+                debugDiv.style.display = 'block';
+                debugText.textContent = `Attempting to connect to: ${API_URL}\nRetry: ${retryCount + 1}/${MAX_RETRIES}`;
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+                const response = await fetch(API_URL, {
+                    method: 'GET',
+                    mode: 'cors',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+        
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+        
+                const latitude = parseFloat(data.lat);
+                const longitude = parseFloat(data.lon);
+        
+                if (isNaN(latitude) || isNaN(longitude)) {
+                    throw new Error("Invalid coordinates received");
+                }
+
+                // Check if coordinates are valid (not 0,0)
+                if (latitude === 0 && longitude === 0) {
+                    throw new Error("GPS not ready - coordinates are 0,0");
+                }
+        
+                document.getElementById('coords').style.display = 'block';
+                document.getElementById('coordsText').textContent = `${latitude}, ${longitude}`;
+                debugText.textContent += `\n✓ Success! Redirecting...`;
+        
+                setTimeout(() => {
+                    window.location.href = `https://www.google.com/maps?q=${latitude},${longitude}`;
+                }, 1500);
+        
+            } catch (error) {
+                console.error('GPS Fetch Error:', error);
+                
+                // Retry logic
+                if (retryCount < MAX_RETRIES && error.name !== 'AbortError') {
+                    retryCount++;
+                    document.getElementById('debugText').textContent += `\n⚠ Retrying... (${retryCount}/${MAX_RETRIES})`;
+                    setTimeout(fetchGPSAndRedirect, 2000);
+                    return;
+                }
+
+                // Show error after all retries
+                document.querySelector('.spinner').style.display = 'none';
+                document.getElementById('error').style.display = 'block';
+                
+                let errorMsg = error.message;
+                if (error.name === 'AbortError') {
+                    errorMsg = 'Connection timeout - Server not responding';
+                } else if (error.message.includes('Failed to fetch')) {
+                    errorMsg = 'Cannot connect to server. Check:\n• Same WiFi network\n• Server is running\n• Correct IP address';
+                }
+                
+                document.getElementById('errorMessage').textContent = errorMsg;
+                document.getElementById('debugText').textContent += `\n✗ Error: ${errorMsg}`;
+            }
+        }
+
+        // Start fetching
+        fetchGPSAndRedirect();
+    </script>
+</body>
+</html>
